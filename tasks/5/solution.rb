@@ -69,7 +69,7 @@ class DataModel
     store.counter = counter + 1 unless @id
     @id = counter unless @id
     hsh[:id] = self.id
-    self.class.instance_variable_get('@attributes').each do |var| 
+    self.class.attributes.each do |var| 
       value = instance_variable_get "@#{var}"       
       hsh[var.to_sym] = value
     end
@@ -77,11 +77,11 @@ class DataModel
   end
 
   def counter 
-    self.class.instance_variable_get('@store').counter
+    store.counter
   end
 
   def store
-    self.class.instance_variable_get('@store')
+    self.class.data_store
   end
 end
 
@@ -90,9 +90,6 @@ module Store
 
   def create(hash)
     @storage[hash[:id]] = hash
-  end
-
-  def find(hash)
   end
 
   def update(id, hash)
