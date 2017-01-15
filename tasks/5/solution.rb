@@ -5,15 +5,14 @@ module DataModelBasic
   end
   
   def delete
-    raise DeleteUnsavedRecordError unless id
+    raise DataModel::DeleteUnsavedRecordError unless id
     store.delete(self.convert)
     self
   end
 
-  def ==(other_object)
-    return false if self.class != other_object.class 
-    return true if self.id == other_object.id
-    self.object_id == other_object.object_id
+  def ==(other)
+    return id == other.id if id && other.id
+    equal? other
   end
 
   def convert
@@ -21,7 +20,7 @@ module DataModelBasic
     store.counter = counter + 1 unless @id
     @id = counter unless @id
     hsh[:id] = self.id
-    attributes.each do |var| 
+    self.class.instance_variable_get('@attributes').each do |var| 
       value = instance_variable_get "@#{var}"       
       hsh[var.to_sym] = value
     end
@@ -35,14 +34,21 @@ module DataModelBasic
   def store
     self.class.instance_variable_get('@store')
   end
-
-  def attributes
-    self.class.instance_variable_get('@attributes')
-  end
 end
 class DataModel
   include DataModelBasic
+
   attr_accessor :id
+
+  class UnknownAttributeError < ArgumentError
+    def initialize(attribute_name)
+      super "Unknown attribute #{attribute_name}"
+    end
+  end
+
+  class DeleteUnsavedRecordError < StandardError
+  end
+
   def initialize(values = {})
     values.map do |key, _| 
       self.public_send("#{key}=", values[key]) if self.respond_to? "#{key}="
@@ -51,12 +57,14 @@ class DataModel
 
   class << self
     def attributes(*attributes)
+      return @attributes if attributes.empty?
       @attributes = attributes
       attributes.each do |value|
         attr_accessor(value)
         self.define_singleton_method("find_by_#{value}") do |arg|
           query = {value => arg}
-          @store.find(query)
+          result = @store.find(query).map { |hash| self.new(hash) }
+          result
         end
       end
     end
@@ -67,9 +75,15 @@ class DataModel
     end
 
     def where(hsh)
-      @store.find(hsh).map do |value|
+      hsh.each do |key, _|
+        unless (@attributes.include? key) || (key == :id)
+          raise DataModel::UnknownAttributeError.new(key)
+        end
+      end
+      result = @store.find(hsh).map do |value|
         self.new(value)
-      end.to_a
+      end
+      result
     end
   end
 end
@@ -88,7 +102,8 @@ module Store
   end 
 
   def delete(hash)
-    @storage[hash[:id]] = nil
+    to_delete = find(hash)
+    to_delete.each { |hash| @storage[hash[:id]] = nil }
   end
 end
 class HashStore
@@ -102,9 +117,11 @@ class HashStore
   def find(hash)
     result = []
     @storage.select do |_, elem|
+      all = true
       hash.each do |key, value|
-        result << elem if elem && elem[key] == value
+        all &&= elem[key] == value
       end
+      result << elem if elem && all
     end
     result
   end
@@ -120,12 +137,11 @@ class ArrayStore
   def find(hash)
     result = []
     @storage.each do |elem|
+      result << elem if elem && hash.empty?
       hash.each do |key, value|
         result << elem if elem && elem[key] == value && !(result.include? elem)
       end
     end
     result
   end
-end
-class DeleteUnsavedRecordError < StandardError
 end

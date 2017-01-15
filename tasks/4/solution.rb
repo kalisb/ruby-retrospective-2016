@@ -8,6 +8,7 @@ RSpec.describe 'Version' do
       expect(Version.new).not_to be nil
       expect(Version.new('')).not_to be nil
     end
+
     it "is invalid" do
       expect do 
         Version.new('-1.3')
@@ -37,6 +38,7 @@ RSpec.describe 'Version' do
         Version.new('v:1.13.3') 
       end.to raise_error(ArgumentError, "Invalid version string 'v:1.13.3'")
     end
+
     it "can be equal" do
       version1 = Version.new('1')
       version2 = Version.new('1.0')
@@ -45,18 +47,21 @@ RSpec.describe 'Version' do
       expect(version1 == version2).to eq(true)
       expect(version1 == version3).to eq(true)
       expect(version2 == version3).to eq(true)
-      expect(version3 <= version4).to eq(true)
+      expect(version4).not_to be <= version3
+      expect(version3 >= version4).to eq(false)
       expect(version3 <=> version4).to eq(-1)
       expect(version3 <=> version1).to eq(0)
     end
+
     it "can be compared" do
-      expect(Version.new('1') < Version.new('1.0.1')).to eq(true)
-      expect(Version.new('1.0.1') < Version.new('1.1')).to eq(true)
-      expect(Version.new('1.1') < Version.new('1.1.1')).to eq(true)
-      expect(Version.new('1.1.1') < Version.new('1.2')).to eq(true)
-      expect(Version.new('1.2') < Version.new('2')).to eq(true)
-      expect(Version.new('2') < Version.new('10')).to eq(true)
+      expect(Version.new('1')).to be <= Version.new('1.0.1')
+      expect(Version.new('1.1')).to be > Version.new('1.0.1')
+      expect(Version.new('1.1')).to be < Version.new('1.1.1')
+      expect(Version.new('1.2')).to be >= Version.new('1.1.1')
+      expect(Version.new('1.2')).not_to be > Version.new('2')
+      expect(Version.new('10')).not_to be < Version.new('2')
     end
+
     it "can remove zeros in end" do
       expect(Version.new('1.1.0').to_s).to eq('1.1')
       expect(Version.new('1.0.0.0').to_s).to eq('1')
@@ -66,6 +71,7 @@ RSpec.describe 'Version' do
       expect(Version.new('1.0.1').to_s).to eq('1.0.1')
       expect(Version.new('0.0.0').to_s).to eq('')
     end
+
     it "can get components" do
       version = Version.new('1.1.0')
       expect(version.components).to eq([1, 1])
@@ -75,18 +81,31 @@ RSpec.describe 'Version' do
       expect(version.components(4)).to eq([1, 1, 0, 0])
       expect(version).to eq(Version.new('1.1'))
     end
+
+    it "is not able to modify the internal data of the version" do
+      version = Version.new('1.2.3')
+      version.components << 4
+      expect(version).to eq Version.new('1.2.3')
+    end
   end
+
   describe '#range' do
     it "is version included" do
       range1 = Version::Range.new(Version.new('1'), Version.new('2'))
       range2 = Version::Range.new('1', '1.0.0')
-      range3 = Version::Range.new('1', '10')
+      range3 = Version::Range.new("1", "10")
       expect(range1.include?(Version.new('1.5'))).to eq(true)
       expect(range1.include?(Version.new('3.5'))).to eq(false)
       expect(range1.include?(Version.new('0.9'))).to eq(false)
       expect(range2.include?(Version.new('1'))).to eq(false)
-      expect(range3.include?(Version.new('0.9.1'))).to eq(false)
+      expect(range3.include?(Version.new('1.9.1'))).to eq(true)
     end
+
+    it 'can iterate simple version ranges' do
+      range = Version::Range.new('1.1.2', '1.1.5')
+      expect(range.to_a.map(&:to_s)).to eq ['1.1.2', '1.1.3', '1.1.4']
+    end
+
     it "can find all versions" do
       range1 = Version::Range.new(Version.new('1'), Version.new('1.0.2'))
       range2 = Version::Range.new('1.0.0', '1.0.0')
