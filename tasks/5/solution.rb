@@ -113,16 +113,16 @@ class HashStore
   end
 
   def find(hash)
-    result = []
-    @storage.select do |_, elem|
-      all = true
-      hash.each do |key, value|
-        all &&= elem[key] == value
-      end
-      result << elem if elem && all
+    @storage.values.select do |elem|
+      elem if matches(hash, elem)
     end
-    result
   end
+
+  private
+    def matches(hash, elem)
+      true if hash.empty?
+      hash.all? { |key, value| elem[key] == value }
+    end
 end
 class ArrayStore
   include Store
@@ -133,13 +133,14 @@ class ArrayStore
   end
 
   def find(hash)
-    result = []
-    @storage.each do |elem|
-      result << elem if elem && hash.empty?
-      hash.each do |key, value|
-        result << elem if elem && elem[key] == value && !(result.include? elem)
-      end
+    @storage.select do |elem|
+      elem if elem && matches(hash, elem)
     end
-    result
   end
+
+  private
+    def matches(hash, elem)
+      true if hash.empty?
+      hash.all? { |key, value| elem[key] == value }
+    end
 end
