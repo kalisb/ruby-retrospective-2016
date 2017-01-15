@@ -1,63 +1,109 @@
 class CommandParser
   def initialize(command_name)
     @command_name = command_name
-    @argument_map = {}
-    @option_map = {}
+    @arguments = []
+    @options = []
   end
 
   def argument(argument_name, &block)
-    @argument_map[argument_name] = block
+    @arguments << Argument.new(argument_name, &block)
   end
 
-  def option(*option_name, &block)
-    option_name[0] = '-' + option_name[0] 
-    option_name[1] = '--' + option_name[1] 
-    @option_map[option_name] = block
+  def option(*arguments, &block)
+    @options << Option.new(*arguments, &block)
   end
 
-  def option_with_parameter(*option_name, &block)
-    option(*option_name, &block)
+  def option_with_parameter(*arguments, &block)
+    @options << OptionWithParameter.new(*arguments, &block)
   end
 
   def parse(command_runner, argv)
-    options = argv.select { |arg| arg.start_with?("-", "--") }
-    arguments = argv.reject { |arg| options.include?(arg) }
-    parse_options(command_runner, options)
-    @argument_map.each_with_index do |(_, block), index|
-      block.call(command_runner, arguments[index])
+    options = argv.select { |arg| arg.start_with?("-") }
+    arguments = argv - options
+
+    options.each do |option| 
+      collect_known(option).each do |known_opt|
+        known_opt.handle(command_runner, option)
+      end
+    end
+
+    @arguments.each_with_index do |argument, index|
+      argument.handle(command_runner, arguments[index])
     end
   end
 
-  def parse_options(command_runner, options)
-    @option_map.each do |(opt, block)|
-      if (options.include? opt[0]) || (options.include? opt[1])
-        block.call(command_runner, true)
-      else
-        parse_option_parameter(command_runner, options, opt, block)
-      end
-    end 
-  end
-
-  def parse_option_parameter(command_runner, options, opt, block)
-    options.select { |option| option =~ /^(#{opt[0]}|#{opt[1]}=)/ }
-      .map do |option|
-        option.sub!(/^(#{opt[0]}|#{opt[1]}=)/, "")
-        block.call(command_runner, option)  
-      end
+  def collect_known(send_option)
+    @options.select do |option| 
+      send_option =~ /^(#{option.short_name}|#{option.long_name})/
+    end
   end
 
   def help
     banner = "Usage: #{@command_name} "
-    @argument_map.each { |key, _| banner << "[#{key}] " }
+    @arguments.each { |argument| banner << argument.text }
     banner.strip + generate_help_body
   end
 
   def generate_help_body
     body = ""
-    @option_map.each do |key, _|
-      body << "\n    #{key[0]}, #{key[1]}=#{key[3]} #{key[2]}" if key[3] 
-      body << "\n    #{key[0]}, #{key[1]} #{key[2]}" unless key[3] 
+    @options.each do |option|
+      body << option.text  
     end
+    body = "\n" + body unless body == ""
     body
+  end
+end
+
+class Argument
+  attr_accessor :name, :action
+
+  def initialize(name, &block)
+    @name = name
+    @action = block
+  end
+
+  def handle(command_runner, argument) 
+    action.call(command_runner, argument)
+  end
+
+  def text
+    "[#{@name}] "
+  end
+end
+
+class Option
+  attr_accessor :short_name, :long_name, :help, :action
+  
+  def initialize(short_name, long_name, help, &block)
+    @short_name = "-#{short_name}" 
+    @long_name = "--#{long_name}"
+    @help = help
+    @action = block
+  end
+
+  def handle(command_runner, _)
+    action.call(command_runner, true)
+  end
+
+  def text
+    "    #{@short_name}, #{@long_name} #{@help}\n"
+  end
+end
+
+class OptionWithParameter < Option
+  attr_accessor :parameter
+
+  def initialize(short_name, long_name, help, parameter, &block)
+    super(short_name, long_name, help, &block)
+    @parameter = parameter
+  end
+
+  def handle(command_runner, option)
+    option = option.sub!(/^(#{@short_name}|#{@long_name}=)/, "")
+    action.call(command_runner, option)
+  end
+
+  def text
+    "    #{@short_name}, #{@long_name}=#{@parameter} #{@help}\n" 
   end
 end
