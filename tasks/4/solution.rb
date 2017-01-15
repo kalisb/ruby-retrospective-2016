@@ -1,6 +1,6 @@
 RSpec.describe 'Version' do
   describe '#version' do
-    it "is valid" do
+    it "is created given valid arguments" do
       expect(Version.new('1')).not_to be nil
       expect(Version.new('1.13.3.4')).not_to be nil
       expect(Version.new('100.13.3')).not_to be nil
@@ -9,33 +9,21 @@ RSpec.describe 'Version' do
       expect(Version.new('')).not_to be nil
     end
 
-    it "is invalid" do
-      expect do 
-        Version.new('-1.3')
-      end.to raise_error(ArgumentError, "Invalid version string '-1.3'")
-      expect do 
-        Version.new('1.-3') 
-      end.to raise_error(ArgumentError, "Invalid version string '1.-3'")
-      expect do  
-        Version.new('1.0.-3') 
-      end.to raise_error(ArgumentError, "Invalid version string '1.0.-3'")
+    it "throws ecseption given invalid invalid" do
+      expect { Version.new('-1.3') }.to raise_error ArgumentError
+      expect { Version.new('1.-3') }.to raise_error ArgumentError
+      expect { Version.new('1.0.-3') }.to raise_error ArgumentError 
+      expect { Version.new('1.0.3.') }.to raise_error ArgumentError 
+      expect { Version.new('.3') }.to raise_error ArgumentError
+      expect { Version.new('.') }.to raise_error ArgumentError
+      expect { Version.new('..') }.to raise_error ArgumentError
+      expect { Version.new('0..3') }.to raise_error ArgumentError
+      expect { Version.new('v:1.13.3') }.to raise_error ArgumentError
+    end
+
+    it "throws expseption with correct message" do
       expect do
-        Version.new('1.0.3.') 
-      end.to raise_error(ArgumentError, "Invalid version string '1.0.3.'")
-      expect do  
-        Version.new('.3')
-      end.to raise_error(ArgumentError, "Invalid version string '.3'")
-      expect do  
-        Version.new('.') 
-      end.to raise_error(ArgumentError, "Invalid version string '.'")
-      expect do  
-        Version.new('..') 
-      end.to raise_error(ArgumentError, "Invalid version string '..'")
-      expect do  
-        Version.new('0..3') 
-      end.to raise_error(ArgumentError, "Invalid version string '0..3'")
-      expect do  
-        Version.new('v:1.13.3') 
+        Version.new('v:1.13.3')
       end.to raise_error(ArgumentError, "Invalid version string 'v:1.13.3'")
     end
 
@@ -44,22 +32,27 @@ RSpec.describe 'Version' do
       version2 = Version.new('1.0')
       version3 = Version.new('1.0.0')
       version4 = Version.new("1.0.0.9")
-      expect(version1 == version2).to eq(true)
-      expect(version1 == version3).to eq(true)
-      expect(version2 == version3).to eq(true)
-      expect(version4).not_to be <= version3
-      expect(version3 >= version4).to eq(false)
-      expect(version3 <=> version4).to eq(-1)
-      expect(version3 <=> version1).to eq(0)
+      expect(version1).to eq(version2)
+      expect(version1).to eq(version3)
+      expect(version2).to eq(version3)
+      expect(version3).not_to eq(version4)
     end
 
-    it "can be compared" do
+    it "can be compared using <, >, <= and >=" do
       expect(Version.new('1')).to be <= Version.new('1.0.1')
+      expect(Version.new('1.0.1')).not_to be <= Version.new('1')
       expect(Version.new('1.1')).to be > Version.new('1.0.1')
-      expect(Version.new('1.1')).to be < Version.new('1.1.1')
-      expect(Version.new('1.2')).to be >= Version.new('1.1.1')
       expect(Version.new('1.2')).not_to be > Version.new('2')
+      expect(Version.new('1.1')).to be < Version.new('1.1.1')
       expect(Version.new('10')).not_to be < Version.new('2')
+      expect(Version.new('1.2')).to be >= Version.new('1.1.1')
+      expect(Version.new('1.1.1')).not_to be >= Version.new('1.2')
+    end
+    
+    it "can be compared using <=>" do
+      expect(Version.new('1.2') <=> Version.new('1.1.1')).to be 1
+      expect(Version.new('1.2') <=> Version.new('1.2.0')).to be 0
+      expect(Version.new('1.2') <=> Version.new('1.3')).to be -1
     end
 
     it "can remove zeros in end" do
@@ -79,7 +72,6 @@ RSpec.describe 'Version' do
       expect(version.components(2)).to eq([1, 1])
       expect(version.components(3)).to eq([1, 1, 0])
       expect(version.components(4)).to eq([1, 1, 0, 0])
-      expect(version).to eq(Version.new('1.1'))
     end
 
     it "is not able to modify the internal data of the version" do
@@ -90,7 +82,7 @@ RSpec.describe 'Version' do
   end
 
   describe '#range' do
-    it "is version included" do
+    it "can check if version is included" do
       range1 = Version::Range.new(Version.new('1'), Version.new('2'))
       range2 = Version::Range.new('1', '1.0.0')
       range3 = Version::Range.new("1", "10")
